@@ -7,26 +7,11 @@ import (
 
 	"github.com/cdrivex4/agy-plus-plus/internal/diagnostics"
 	"github.com/cdrivex4/agy-plus-plus/internal/policy"
+	"github.com/cdrivex4/agy-plus-plus/internal/session"
+	"github.com/cdrivex4/agy-plus-plus/internal/tui"
 	"github.com/cdrivex4/agy-plus-plus/internal/upstream/agy"
 	"github.com/cdrivex4/agy-plus-plus/internal/version"
 )
-
-// ParsedFlags holds all CLI flags parsed before execution.
-type ParsedFlags struct {
-	ShowVersion      bool
-	YoloMode         bool
-	PlanMode         bool
-	Sandbox          bool
-	PrintPrompt      string
-	InteractivePrompt string
-	OutputFormat     string
-	Continue         bool
-	ConversationID   string
-	Model            string
-	Project          string
-	Effort           string
-	ExtraArgs        []string
-}
 
 // Execute runs the AGY++ CLI application.
 func Execute(ctx context.Context, args []string) int {
@@ -78,17 +63,41 @@ func Execute(ctx context.Context, args []string) int {
 		pol.SetPlanMode(true)
 	}
 
-	// Build AGY args
-	agyArgs := BuildAgyArgs(flags, pol, inst)
-
-	// Print AGY++ mode header
-	printSessionHeader(pol)
-
-	// Execute upstream agy
 	adapter := agy.NewProcessAdapter(inst)
-	if err := adapter.RunWithArgs(ctx, agyArgs); err != nil {
-		// agy exits non-zero when user quits normally — don't treat that as an error
+
+	// Non-interactive print mode (no shell)
+	if flags.PrintPrompt != "" {
+		err := adapter.RunPrint(ctx, agy.PrintOptions{
+			Prompt:       flags.PrintPrompt,
+			Yolo:         pol.IsYoloEnabled(),
+			OutputFormat: flags.OutputFormat,
+			ExtraArgs:    flags.ExtraArgs,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return 1
+		}
 		return 0
+	}
+
+	// Interactive AGY++ shell with live Ctrl+Y YOLO toggling
+	store, _ := session.NewStore()
+	cwd, _ := os.Getwd()
+	sess, _ := store.CreateSession(cwd, "")
+
+	shellOpts := tui.InitialOpts{
+		ConversationID: flags.ConversationID,
+		Continue:       flags.Continue,
+		Model:          flags.Model,
+		Project:        flags.Project,
+		Effort:         flags.Effort,
+		InitialPrompt:  flags.InteractivePrompt,
+	}
+
+	sh := tui.NewShell(inst, pol, sess, store, shellOpts)
+	if err := sh.Run(ctx); err != nil {
+		fmt.Fprintf(os.Stderr, "Session error: %v\n", err)
+		return 1
 	}
 
 	return 0
@@ -147,38 +156,23 @@ func BuildAgyArgs(flags *ParsedFlags, pol *policy.Manager, inst *agy.Installatio
 	return args
 }
 
-func printSessionHeader(pol *policy.Manager) {
-	if pol.IsYoloEnabled() {
-		fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════╗")
-		fmt.Fprintln(os.Stderr, "║  ⚡ AGY++  ·  YOLO MODE ACTIVE       ║")
-		fmt.Fprintln(os.Stderr, "║  All tool actions auto-approved.      ║")
-		fmt.Fprintln(os.Stderr, "║  Press Ctrl+C or type /quit to exit. ║")
-		fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════╝")
-	} else if pol.IsPlanEnabled() {
-		fmt.Fprintln(os.Stderr, "╔══════════════════════════════════════╗")
-		fmt.Fprintln(os.Stderr, "║  📋 AGY++  ·  PLAN MODE ACTIVE       ║")
-		fmt.Fprintln(os.Stderr, "║  Read-only guardrails enabled.        ║")
-		fmt.Fprintln(os.Stderr, "╚══════════════════════════════════════╝")
-	}
-}
-
 func printUsage() {
 	fmt.Println(`AGY++ — Antigravity CLI on steroids
 
 USAGE:
-  agy++ [flags]                         Interactive session
-  agy++ -y [flags]                      Interactive session in YOLO mode
-  agy++ -p "prompt" [flags]             Non-interactive print mode
+  agy++ [flags]                         Interactive session (with Ctrl+Y YOLO toggle)
+  agy++ -y [flags]                      Start in YOLO mode
+  agy++ -p "prompt" [flags]             Non-interactive single prompt
   agy++ [command]                       Run a companion command
 
 FLAGS (agy++ specific):
-  -y, --yolo                Enable YOLO mode (auto-approve all tool permissions)
+  -y, --yolo                Enable YOLO mode at session start
       --plan                Enable Plan mode (read-only, no file edits)
       --sandbox             Enable terminal sandbox restrictions
 
-FLAGS (passed directly to AGY):
-  -i  "prompt"              Open interactive session with an initial prompt
-  -p  "prompt"              Run a single prompt and print (non-interactive)
+FLAGS (forwarded to AGY):
+  -i  "prompt"              Open session with an initial prompt
+  -p  "prompt"              Run a single prompt (non-interactive)
   -c, --continue            Resume the most recent conversation
       --conversation <id>   Resume a conversation by ID
       --model <model>       Select a specific model
@@ -191,12 +185,22 @@ FLAGS (passed directly to AGY):
 COMPANION COMMANDS:
   agy++ diagnostics         Inspect system, AGY installation, and capabilities
   agy++ version             Show detailed version information
-  agy++ help                Show this message
+
+IN-SESSION CONTROLS:
+  Ctrl+Y                    Toggle YOLO mode live mid-session
+  /yolo, /y                 Toggle YOLO mode via slash command
+  /plan                     Toggle Plan mode
+  /status                   Show session info and active mode
+  /checkpoint, /cp          Save a conversation + Git state checkpoint
+  /diff                     Show uncommitted Git diff
+  /sessions                 List saved sessions
+  /help                     Show all slash commands
+  /quit, /q                 Exit
 
 EXAMPLES:
-  agy++                           Start a normal interactive AGY session
-  agy++ -y                        Start session with YOLO auto-approval active
-  agy++ -y -c                     Resume last session with YOLO active
+  agy++                           Start interactive session (normal mode)
+  agy++ -y                        Start interactive session (YOLO mode on)
+  agy++ -y -c                     Resume last session in YOLO mode
   agy++ -p "Summarize this repo"  Non-interactive single prompt
   agy++ --plan -i "Review code"   Open in read-only plan mode
   agy++ diagnostics               Check system compatibility`)

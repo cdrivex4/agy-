@@ -4,6 +4,23 @@ import (
 	"flag"
 )
 
+// ParsedFlags holds all CLI flags parsed before execution.
+type ParsedFlags struct {
+	ShowVersion       bool
+	YoloMode          bool
+	PlanMode          bool
+	Sandbox           bool
+	PrintPrompt       string
+	InteractivePrompt string
+	OutputFormat      string
+	Continue          bool
+	ConversationID    string
+	Model             string
+	Project           string
+	Effort            string
+	ExtraArgs         []string
+}
+
 // ParseFlags parses CLI arguments into a structured ParsedFlags object.
 // It uses a lenient parse mode so unknown flags bubble up as ExtraArgs.
 func ParseFlags(args []string) (*ParsedFlags, error) {
