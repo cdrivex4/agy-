@@ -7,8 +7,6 @@ import (
 
 	"github.com/cdrivex4/agy-plus-plus/internal/diagnostics"
 	"github.com/cdrivex4/agy-plus-plus/internal/policy"
-	"github.com/cdrivex4/agy-plus-plus/internal/session"
-	"github.com/cdrivex4/agy-plus-plus/internal/tui"
 	"github.com/cdrivex4/agy-plus-plus/internal/upstream/agy"
 	"github.com/cdrivex4/agy-plus-plus/internal/version"
 )
@@ -80,24 +78,12 @@ func Execute(ctx context.Context, args []string) int {
 		return 0
 	}
 
-	// Interactive AGY++ shell with live Ctrl+Y YOLO toggling
-	store, _ := session.NewStore()
-	cwd, _ := os.Getwd()
-	sess, _ := store.CreateSession(cwd, "")
+	// Build AGY arguments from flags
+	agyArgs := BuildAgyArgs(flags, pol, inst)
 
-	shellOpts := tui.InitialOpts{
-		ConversationID: flags.ConversationID,
-		Continue:       flags.Continue,
-		Model:          flags.Model,
-		Project:        flags.Project,
-		Effort:         flags.Effort,
-		InitialPrompt:  flags.InteractivePrompt,
-	}
-
-	sh := tui.NewShell(inst, pol, sess, store, shellOpts)
-	if err := sh.Run(ctx); err != nil {
-		fmt.Fprintf(os.Stderr, "Session error: %v\n", err)
-		return 1
+	// Interactive / Direct native execution (preserves full rich TUI, colors, models, and tables)
+	if err := adapter.RunWithArgs(ctx, agyArgs); err != nil {
+		return 0
 	}
 
 	return 0
