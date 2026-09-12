@@ -23,6 +23,16 @@ if ($Uninstall) {
     if ((Test-Path $installDir) -and ((Get-ChildItem $installDir).Count -eq 0)) {
         Remove-Item $installDir -Force
     }
+
+    # Clean up User PATH entry
+    $userPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
+    if ($userPath) {
+        $pathEntries = $userPath -split ";" | Where-Object { $_ -and ($_ -ne $installDir) }
+        $cleanedPath = $pathEntries -join ";"
+        [Environment]::SetEnvironmentVariable("Path", $cleanedPath, [EnvironmentVariableTarget]::User)
+        Write-Host "Removed $installDir from User PATH." -ForegroundColor Green
+    }
+
     Write-Host "Note: User data in %APPDATA%\AgyPlusPlus has been preserved." -ForegroundColor Yellow
     Write-Host "AGY++ uninstall complete." -ForegroundColor Green
     exit 0
