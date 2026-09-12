@@ -19,6 +19,14 @@ $ldflags = "-s -w -X 'github.com/cdrivex4/agy-plus-plus/internal/version.Version
            "-X 'github.com/cdrivex4/agy-plus-plus/internal/version.BuildDate=$date' " +
            "-X 'github.com/cdrivex4/agy-plus-plus/internal/version.BaselineAgy=1.2.2'"
 
-Write-Host "Building AGY++ v$version ($commit)..." -ForegroundColor Cyan
-go build -ldflags $ldflags -o $Output ./cmd/agy-plus-plus
+$goBin = "go"
+if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+    $localGo = Join-Path $PSScriptRoot "..\..\.tools\go\bin\go.exe"
+    if (Test-Path $localGo) {
+        $goBin = (Resolve-Path $localGo).Path
+    }
+}
+
+Write-Host "Building AGY++ v$version ($commit) using $goBin..." -ForegroundColor Cyan
+& $goBin build -ldflags $ldflags -o $Output ./cmd/agy-plus-plus
 Write-Host "Build complete: $Output" -ForegroundColor Green

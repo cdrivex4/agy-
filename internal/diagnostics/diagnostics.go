@@ -14,7 +14,7 @@ var (
 	// Redaction patterns for tokens, keys, and secrets
 	secretPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(ya29\.[0-9a-zA-Z_-]+)`),
-		regexp.MustCompile(`(?i)(AIza[0-9A-Za-z-_]{35})`),
+		regexp.MustCompile(`(?i)(AIza[0-9A-Za-z-_]{20,40})`),
 		regexp.MustCompile(`(?i)(Bearer\s+[A-Za-z0-9\-._~+/]+=*)`),
 		regexp.MustCompile(`(?i)(refresh_token=)[^\s&]+`),
 	}

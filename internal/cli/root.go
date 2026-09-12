@@ -16,6 +16,9 @@ import (
 func Execute(ctx context.Context, args []string) int {
 	if len(args) > 1 {
 		switch args[1] {
+		case "help", "--help", "-h":
+			printUsage()
+			return 0
 		case "diagnostics":
 			inst, _ := agy.Discover()
 			fmt.Println(diagnostics.GenerateReport(inst))
@@ -107,4 +110,35 @@ func Execute(ctx context.Context, args []string) int {
 	}
 
 	return 0
+}
+
+func printUsage() {
+	fmt.Println(`AGY++ — Antigravity CLI on steroids
+
+Usage:
+  agy++ [flags]
+  agy++ [flags] "prompt"
+  agy++ [command]
+
+Flags:
+  -y, --yolo           Enable YOLO mode (auto-approve tool permissions)
+      --plan           Enable Plan mode (read-only planning guardrails)
+      --sandbox        Run with terminal restrictions enabled
+  -i string            Run an initial prompt interactively and continue
+  -p, --print string   Run prompt non-interactively and print response
+      --output-format  Output format for print mode (text, json, stream-json)
+  -v, --version        Display version information
+  -h, --help           Show this help message
+
+Subcommands:
+  diagnostics          Display environment, AGY discovery, and capability status
+  version              Show detailed version and compatibility baseline
+
+Interactive Slash Commands (within session):
+  /help                Show available in-session commands
+  /status              Display session status, active model, and YOLO mode
+  /yolo                Toggle YOLO mode
+  /plan                Toggle plan mode
+  /diagnostics         Display system diagnostics
+  /quit                Exit the session`)
 }
