@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [ windows, linux, darwin ]
+        goarch: [ amd64, arm64 ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build Binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          BIN_NAME="agy++"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BIN_NAME="agy++.exe"
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date +%Y-%m-%d)
+          LDFLAGS="-s -w -X 'github.com/cdrivex4/agy-plus-plus/internal/version.Version=${VERSION}' \
+            -X 'github.com/cdrivex4/agy-plus-plus/internal/version.GitCommit=${COMMIT}' \
+            -X 'github.com/cdrivex4/agy-plus-plus/internal/version.BuildDate=${DATE}' \
+            -X 'github.com/cdrivex4/agy-plus-plus/internal/version.BaselineAgy=1.2.2'"
+          
+          go build -ldflags "${LDFLAGS}" -o "dist/${BIN_NAME}" ./cmd/agy-plus-plus
+          cd dist
+          ARCHIVE_NAME="agypp-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip "${ARCHIVE_NAME}.zip" "${BIN_NAME}" ../README.md ../LICENSE
+            sha256sum "${ARCHIVE_NAME}.zip" > "${ARCHIVE_NAME}.zip.sha256"
+          else
+            tar -czf "${ARCHIVE_NAME}.tar.gz" "${BIN_NAME}" ../README.md ../LICENSE
+            sha256sum "${ARCHIVE_NAME}.tar.gz" > "${ARCHIVE_NAME}.tar.gz.sha256"
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.*
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

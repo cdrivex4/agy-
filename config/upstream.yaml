@@ -1,0 +1,24 @@
+agy_repository:
+  url: https://github.com/google-antigravity/antigravity-cli
+  branch: main
+  observed_version: 1.2.2
+  observed_commit: unknown
+  observed_date: 2026-09-12
+
+gemini_repository:
+  url: https://github.com/google-gemini/gemini-cli
+  branch: main
+  observed_commit: unknown
+  observed_date: 2026-09-12
+
+compatibility_matrix:
+  - version: "1.2.2"
+    tested: true
+    compatible: true
+    baseline: true
+    notes: "Baseline tested with local installation on Windows"
+  - version: "1.1.16"
+    tested: false
+    compatible: true
+    baseline: false
+    notes: "Prior baseline mentioned in bootstrap instructions"
