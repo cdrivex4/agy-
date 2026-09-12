@@ -8,6 +8,8 @@ import (
 
 	"github.com/cdrivex4/agy-plus-plus/internal/diagnostics"
 	"github.com/cdrivex4/agy-plus-plus/internal/policy"
+	"github.com/cdrivex4/agy-plus-plus/internal/session"
+	"github.com/cdrivex4/agy-plus-plus/internal/tui"
 	"github.com/cdrivex4/agy-plus-plus/internal/upstream/agy"
 	"github.com/cdrivex4/agy-plus-plus/internal/version"
 )
@@ -96,15 +98,13 @@ func Execute(ctx context.Context, args []string) int {
 		return 0
 	}
 
-	// Interactive mode
-	err = adapter.RunInteractive(ctx, agy.InteractiveOptions{
-		Prompt:    *interactivePrompt,
-		Yolo:      pol.IsYoloEnabled(),
-		PlanMode:  pol.IsPlanEnabled(),
-		Sandbox:   pol.SandboxActive(),
-		ExtraArgs: fs.Args(),
-	})
-	if err != nil {
+	// Interactive AGY++ TUI Shell (with live Ctrl+Y toggle and slash commands)
+	store, _ := session.NewStore()
+	cwd, _ := os.Getwd()
+	sess, _ := store.CreateSession(cwd, "")
+
+	sh := tui.NewShell(inst, pol, sess, store)
+	if err := sh.Run(ctx, *interactivePrompt); err != nil {
 		fmt.Fprintf(os.Stderr, "Session ended with error: %v\n", err)
 		return 1
 	}
