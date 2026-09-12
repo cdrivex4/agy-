@@ -17,23 +17,33 @@ func NewProcessAdapter(inst *Installation) *ProcessAdapter {
 	return &ProcessAdapter{Installation: inst}
 }
 
-// InteractiveOptions holds settings for interactive execution.
+// RunWithArgs is the primary method — passes args directly to agy.exe,
+// connecting stdin/stdout/stderr so the full native AGY TUI runs unmodified.
+func (p *ProcessAdapter) RunWithArgs(ctx context.Context, args []string) error {
+	cmd := exec.CommandContext(ctx, p.Installation.BinaryPath, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// InteractiveOptions holds settings for interactive execution (compatibility only).
 type InteractiveOptions struct {
-	Prompt       string
-	Yolo         bool
-	PlanMode     bool
-	Sandbox      bool
-	Model        string
-	Project      string
-	ExtraArgs    []string
-	Stdin        io.Reader
-	Stdout       io.Writer
-	Stderr       io.Writer
+	Prompt    string
+	Yolo      bool
+	PlanMode  bool
+	Sandbox   bool
+	Model     string
+	Project   string
+	ExtraArgs []string
+	Stdin     io.Reader
+	Stdout    io.Writer
+	Stderr    io.Writer
 }
 
 // RunInteractive launches upstream agy in interactive mode attached to terminal streams.
 func (p *ProcessAdapter) RunInteractive(ctx context.Context, opts InteractiveOptions) error {
-	args := []string{}
+	var args []string
 
 	if opts.Yolo && p.Installation.Capabilities.SupportsYolo {
 		args = append(args, "--dangerously-skip-permissions")
@@ -51,49 +61,33 @@ func (p *ProcessAdapter) RunInteractive(ctx context.Context, opts InteractiveOpt
 		args = append(args, "--project", opts.Project)
 	}
 	if opts.Prompt != "" {
-		args = append(args, "-i", opts.Prompt)
+		args = append(args, "--prompt-interactive", opts.Prompt)
 	}
 
 	args = append(args, opts.ExtraArgs...)
-
-	cmd := exec.CommandContext(ctx, p.Installation.BinaryPath, args...)
-	cmd.Stdin = opts.Stdin
-	if cmd.Stdin == nil {
-		cmd.Stdin = os.Stdin
-	}
-	cmd.Stdout = opts.Stdout
-	if cmd.Stdout == nil {
-		cmd.Stdout = os.Stdout
-	}
-	cmd.Stderr = opts.Stderr
-	if cmd.Stderr == nil {
-		cmd.Stderr = os.Stderr
-	}
-
-	return cmd.Run()
+	return p.RunWithArgs(ctx, args)
 }
 
 // PrintOptions holds settings for non-interactive execution.
 type PrintOptions struct {
 	Prompt       string
 	Yolo         bool
-	OutputFormat string // text, json, stream-json
+	OutputFormat string
 	ExtraArgs    []string
 	Stdout       io.Writer
 	Stderr       io.Writer
 }
 
-// RunPrint launches upstream agy with -p (non-interactive).
+// RunPrint launches upstream agy with --print (non-interactive).
 func (p *ProcessAdapter) RunPrint(ctx context.Context, opts PrintOptions) error {
-	args := []string{"-p", opts.Prompt}
+	args := []string{"--print", opts.Prompt}
 
 	if opts.Yolo && p.Installation.Capabilities.SupportsYolo {
 		args = append(args, "--dangerously-skip-permissions")
 	}
-	if opts.OutputFormat != "" {
+	if opts.OutputFormat != "" && opts.OutputFormat != "text" {
 		args = append(args, "--output-format", opts.OutputFormat)
 	}
-
 	args = append(args, opts.ExtraArgs...)
 
 	cmd := exec.CommandContext(ctx, p.Installation.BinaryPath, args...)
@@ -105,6 +99,5 @@ func (p *ProcessAdapter) RunPrint(ctx context.Context, opts PrintOptions) error 
 	if cmd.Stderr == nil {
 		cmd.Stderr = os.Stderr
 	}
-
 	return cmd.Run()
 }
